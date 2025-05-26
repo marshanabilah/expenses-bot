@@ -25,6 +25,18 @@ def init_database():
             created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
         )
     ''')
+
+    # Create expenses table
+    cursor.execute('''
+        CREATE TABLE IF NOT EXISTS expenses (
+            id INTEGER PRIMARY KEY,
+            category_id INTEGER,
+            name TEXT,
+            amount INTEGER,
+            date TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            FOREIGN KEY (category_id) REFERENCES categories (id)
+        )
+    ''')
     
     conn.commit()
     conn.close()
@@ -91,6 +103,50 @@ async def add_category(update: Update, context: ContextTypes.DEFAULT_TYPE):
         text=f"Category '{category_name}' with budget {budget_value} JPY added successfully."
     )
 
+async def add_expense(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    if len(context.args) < 2:
+        await context.bot.send_message(
+            chat_id=update.effective_chat.id,
+            text="Usage: /add_expense <category_name> <amount> <name>"
+        )
+        return
+
+    category_name = context.args[0]
+    amount = context.args[1]
+    name = context.args[2] if len(context.args) > 2 else "Unnamed Expense"
+
+    try:
+        amount_value = int(amount)
+    except ValueError:
+        await context.bot.send_message(
+            chat_id=update.effective_chat.id,
+            text="Amount must be a number."
+        )
+        return
+
+    conn = sqlite3.connect(DB_NAME)
+    cursor = conn.cursor()
+
+    cursor.execute("SELECT id FROM categories WHERE name = ?", (category_name,))
+    category = cursor.fetchone()
+
+    if not category:
+        await context.bot.send_message(
+            chat_id=update.effective_chat.id,
+            text=f"Category '{category_name}' not found."
+        )
+        conn.close()
+        return
+
+    cursor.execute("INSERT INTO expenses (category_id, name, amount) VALUES (?, ?, ?)", (category['id'], name, amount_value))
+    conn.commit()
+    conn.close()
+
+    await context.bot.send_message(
+        chat_id=update.effective_chat.id,
+        text=f"Expense of {name} with {amount_value} JPY added to category '{category_name}'."
+    )
+
 async def get_categories_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     categories = get_categories()
     if not categories or not categories['categories']:
@@ -125,6 +181,7 @@ def run_telegram_bot():
     application.add_handler(CommandHandler("expenses", compute_expenses))
     application.add_handler(CommandHandler("add_category", add_category))
     application.add_handler(CommandHandler("categories", get_categories_handler))
+    application.add_handler(CommandHandler("add_expense", add_expense))
 
     application.run_polling()
 
