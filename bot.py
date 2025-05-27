@@ -138,7 +138,7 @@ async def add_expense(update: Update, context: ContextTypes.DEFAULT_TYPE):
         conn.close()
         return
 
-    cursor.execute("INSERT INTO expenses (category_id, name, amount) VALUES (?, ?, ?)", (category['id'], name, amount_value))
+    cursor.execute("INSERT INTO expenses (category_id, name, amount) VALUES (?, ?, ?)", (category[0], name, amount_value))
     conn.commit()
     conn.close()
 
